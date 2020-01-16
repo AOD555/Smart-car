@@ -1,0 +1,170 @@
+#include <LIDARLite.h>
+
+
+
+//variable
+LIDARLite lidarLite;
+const int highLowSpeed = 2, steeringForward = 3, steeringBackward = 4, motorClockwise = 5, motorCounterclockwise = 6; // information from the pi to the corresponding pin
+int communication = 0;
+bool warning = 0;
+
+//functions
+bool lidar();
+void HLSpeed(int dir, int speedDegree );
+void turn(int directionOfCar);
+
+//int* information[4]; // foward, backward, speedDegree, currentDirection, training. We may not need training anymore though
+
+struct infowrap { // makes a datatype, like float or int, but its called infowrap
+  int info[4];    // an array of 4
+};
+struct infowrap communicationWithPI();    // datatype of commicationWithPI() is infowrap. Its a global variable.
+// put your setup code here, to run once:
+void setup() 
+{
+  // Start the serial module with a baud rate of 9600 bps, 6 data bits, even parity, and 2 stop bits
+  Serial.begin(9600, SERIAL_6E2); 
+  
+  //seting output
+  pinMode(motorClockwise, OUTPUT);
+  pinMode(motorCounterclockwise, OUTPUT);
+  pinMode(highLowSpeed, OUTPUT);
+  pinMode(steeringForward, OUTPUT);
+  pinMode(steeringBackward, OUTPUT);
+   
+ //Setup for lidarLite 
+  lidarLite.begin(0, true);   //set config to default and I2C to 400kHz, starts I2C
+  lidarLite.configure(0);     //there are 6 different configs available, 0 is default
+ 
+  digitalWrite(highLowSpeed, HIGH); // sets the the variable highLowSpeed to LOW
+  int test[4];
+  test[1] = 1;
+  struct infowrap information;
+ // information.info[0] = [1];
+ // information.info[1] = [1];
+//  information.info[2] = [1];
+//  information.info[3] = [0];
+
+  HLSpeed(information.info[0], information.info[1]);
+  
+  turn(information.info[2]);
+}
+
+//This is like a main function in C++
+void loop() {
+  struct infowrap information = communicationWithPI(); // information is now a infowrap datatype, which is = to communicationWithPI()
+  warning = lidar();
+  // Says if the car is too close, car stops.
+  while(warning)
+  {
+    communication = 0;
+    information.info[0] = 0; // Tells the lidar to stop if something is in the way.
+    information.info[1] = 0; // sets it to slow speed mode.
+    warning = lidar();
+  }
+  
+  // This is for 0 forward, 1 backwards, 2 speedDegree
+  
+  HLSpeed(information.info[0], information.info[1]);
+ // if(information[4] == 1)
+   // communication= steeringDirection();
+  
+  turn(information.info[2]); //cans turn function
+  
+}
+
+
+struct infowrap communicationWithPI()
+{
+  struct infowrap information;
+  //Serial.println("ready"); // This sends " ready" to the raspberry pi
+  //Serial.println{"YES");
+  if(Serial.available())
+  {
+    for(int i = 0; i < 4; i++) // this looks get the information from the PI> The array is being passed. 
+    {
+      int place = int(Serial.read());
+      if(place == 4)
+        information.info[0] = int (Serial.read()); // converting the calue of chars to integer
+      else if(place == 5)
+        information.info[1] = int (Serial.read()); // converting the calue of chars to integer
+      else if(place == 6)
+        information.info[2] = int (Serial.read()); // converting the calue of chars to integer
+      else if(place == 7)
+        information.info[3] = int (Serial.read()); // converting the calue of chars to integer
+    }
+  }
+  return information;
+}
+
+// this was suppose to talk from the Arduino to Raspberry pi
+/*int steeringDirection(){
+  int steeringStateRight = digitalRead(turningRight);
+  int steeringStateLeft = digitalRead(turningLeft);
+  if((steeringStateRight == HIGH) && (steeringStateLeft == LOW))
+    return 1;
+  else if((steeringStateRight == LOW) && (steeringStateLeft == HIGH))
+    return 2;
+  else
+    return 0;  
+} */
+
+
+void turn(int directionOfCar) // THis is the same as information[3]
+{
+
+  if(directionOfCar == 2) // Turn righnt?
+  {
+    digitalWrite(motorCounterclockwise,HIGH );
+    digitalWrite(motorClockwise,LOW );
+  }
+  else if(directionOfCar == 1) //Turn left? 
+  {
+    digitalWrite(motorClockwise,HIGH );
+    digitalWrite(motorCounterclockwise,LOW );
+  }
+  else if(directionOfCar == 0) // stops turning.
+  {
+    digitalWrite(motorClockwise,LOW );
+    digitalWrite(motorCounterclockwise,LOW );
+  } 
+}
+
+
+void HLSpeed(int dir, int speedDegree ) // if the car moves forward, bakcwards and at what speed. 
+{
+  
+  
+  if(dir == 1)
+    digitalWrite(steeringForward, HIGH);
+  else if(dir == 2)
+    digitalWrite(steeringBackward, HIGH);
+  else
+  {
+    digitalWrite(steeringForward, LOW);
+    digitalWrite(steeringBackward, LOW);
+  }
+  
+  if(speedDegree == 1)
+     digitalWrite(highLowSpeed, HIGH);
+  else
+  {
+  digitalWrite(highLowSpeed, LOW); // sets the the variable highLowSpeed to LOW
+  digitalWrite(steeringForward, LOW); // sets the the variable highLowSpeed to LOW
+  digitalWrite(steeringBackward, LOW); // sets the the variable highLowSpeed to LOW
+  }
+
+}
+
+bool lidar()
+{
+  if(lidarLite.distance(false) <= 10)
+    return true;
+  else
+    return false;
+}
+
+  
+
+
+ 
